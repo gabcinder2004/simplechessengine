@@ -1,41 +1,97 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace SimplifiedChessEngine
 {
     class Program
     {
+        // args[0] = "1"
+        // args[1] = "2 1 1"
+        // args[2] = "N B 2"
+        // args[3] = "Q B 1"
+        // args[4] = "Q A 4"
+
         static void Main(string[] args)
         {
-            // args[0] = "1"
-            // args[1] = "2 1 1"
-            // args[2] = "N B 2"
-            // args[3] = "Q B 1"
-            // args[4] = "Q A 4"
+            var game = new ChessGame()
+            {
+                ChessBoard = new ChessBoard(),
+                CurrentMoveCount = 0,
+            };
 
-            var cell1 = new Cell(null, 2, 2);
-            var cell2 = new Cell(null, 4, 4);
+            game.Initialize(args);
+        }
+    }
 
-            var knight = new Knight();
-            var result = knight.CanMove(cell1, cell2);
+    public class ChessMove
+    {
+        public Cell From { get; set; }
+        public Cell To { get; set; }
 
-            //var game = new ChessGame()
-            //{
-            //    ChessBoard = new ChessBoard(),
-            //    CurrentMoveCount = 0,
-            //};
+        public ChessAction Action { get; set; }
 
-            //game.Initialize(args);
+        public ChessMove(Cell @from, Cell to, ChessAction action)
+        {
+            From = @from;
+            To = to;
+            Action = action;
+        }
+
+        public override string ToString()
+        {
+            return $"{From}:{To} - {Action}";
+        }
+    }
+
+    public enum ChessAction
+    {
+        MOVE,
+        KILL
+    }
+
+    public class GameSolver
+    {
+        public bool GameWon = false;
+        public ChessGame Game { get; set; }
+        public List<ChessMove> AllMoves { get; set; }
+        public ChessMove BestMove { get; set; }
+
+        public GameSolver(ChessGame game)
+        {
+            Game = game;
+        }
+
+        public List<ChessMove> BestPlay(ChessBoard board, ChessColor colorTurn, int turnNumber)
+        {
+            var moves = new List<ChessMove>();
+
+            if (GameWon)
+            {
+                return moves;
+            }
+
+            if (turnNumber > Game.TotalMovesAllowed)
+            {
+                return new List<ChessMove>();
+            }
+
+            if (colorTurn == ChessColor.White)
+            {
+                throw new NotImplementedException();
+            }
+
+            if (colorTurn == ChessColor.Black)
+            {
+                throw new NotImplementedException();
+            }
+
+            return new List<ChessMove>();
         }
     }
 
     public class ChessGame
     {
-        public const int MaxX = 4;
-        public const int MaxY = 4;
         public ChessBoard ChessBoard { get; set; }
         public int TotalMovesAllowed { get; set; }
         public int CurrentMoveCount { get; set; }
@@ -70,9 +126,9 @@ namespace SimplifiedChessEngine
 
         private void FillRemainingBoard()
         {
-            for (int x = 1; x <= MaxX; x++)
+            for (int x = 1; x <= ChessBoard.MaxX; x++)
             {
-                for (int y = 1; y <= MaxY; y++)
+                for (int y = 1; y <= ChessBoard.MaxY; y++)
                 {
                     if (!ChessBoard.Cells.Any(cell => cell.X == x && cell.Y == y))
                     {
@@ -104,32 +160,13 @@ namespace SimplifiedChessEngine
 
     public class ChessBoard
     {
-        public List<ChessPiece> ChessPieces { get; set; }
+        public const int MaxX = 4;
+        public const int MaxY = 4;
         public List<Cell> Cells { get; set; }
 
         public ChessBoard()
         {
-            ChessPieces = new List<ChessPiece>();
             Cells = new List<Cell>();
-        }
-
-        public void MovePiece(Cell from, Cell to)
-        {
-            if (from.Piece == null)
-            {
-                throw new Exception("Cannot move piece");
-            }
-
-            if (to.Piece != null)
-            {
-                throw new NotImplementedException();
-            }
-
-            if (from.Piece.CanMove(from, to))
-            {
-                to.Piece = from.Piece;
-                from.Piece = null;
-            }
         }
     }
 
@@ -138,7 +175,7 @@ namespace SimplifiedChessEngine
         public int X { get; set; }
         public int Y { get; set; }
         public ChessPiece Piece { get; set; }
-        public string Position { get { return ChessUtility.NumberToLetter[X] + Y; } }
+        public string Position => ChessUtility.NumberToLetter[X] + Y;
 
         public Cell(ChessPiece piece, int x, int y)
         {
@@ -151,6 +188,11 @@ namespace SimplifiedChessEngine
         {
             return Piece == null;
         }
+
+        public override string ToString()
+        {
+            return Position;
+        }
     }
 
     public enum ChessColor
@@ -162,7 +204,11 @@ namespace SimplifiedChessEngine
     public abstract class ChessPiece
     {
         public ChessColor Color { get; set; }
-        public abstract bool CanMove(Cell from, Cell to);
+
+        public abstract List<Tuple<int, int>> MovePattern { get; }
+
+        public abstract List<ChessMove> AvailableMoves(Cell currentCell, ChessBoard board);
+
         public static ChessPiece Create(string letter)
         {
             switch (letter)
@@ -179,50 +225,162 @@ namespace SimplifiedChessEngine
                     throw new Exception("Cannot create chess piece: Invalid Type");
             }
         }
+
+        protected List<ChessMove> AvailableMoves(List<Tuple<int, int>> movePattern, Cell currentCell, ChessBoard board)
+        {
+            var availableMoves = new List<ChessMove>();
+
+            foreach (var pattern in movePattern)
+            {
+                var directionX = pattern.Item1;
+                var directionY = pattern.Item2;
+
+                while (true)
+                {
+                    var newCell =
+                        board.Cells.SingleOrDefault(
+                            cell => cell.X == currentCell.X + directionX && cell.Y == currentCell.Y + directionY);
+
+                    if (newCell == null)
+                    {
+                        break;
+                    }
+
+                    if (newCell.Piece == null)
+                    {
+                        availableMoves.Add(new ChessMove(currentCell, newCell, ChessAction.MOVE));
+
+                        if (directionX != 0)
+                        {
+                            directionX = (directionX > 0) ? directionX + 1 : directionX - 1;
+                        }
+
+                        if (directionY != 0)
+                        {
+                            directionY = (directionY > 0) ? directionY + 1 : directionY - 1;
+                        }
+
+                        continue;
+                    }
+
+                    if (newCell.Piece.Color == currentCell.Piece.Color)
+                    {
+                        break;
+                    }
+
+                    if (newCell.Piece.Color != currentCell.Piece.Color)
+                    {
+                        availableMoves.Add(new ChessMove(currentCell, newCell, ChessAction.KILL));
+
+                        directionX = (directionX > 0) ? directionX + 1 : directionX - 1;
+                        directionY = (directionY > 0) ? directionY + 1 : directionY - 1;
+                    }
+                }
+            }
+
+            return availableMoves;
+        }
     }
 
     public class Knight : ChessPiece
     {
-        /*
-         *  Knights can move either:
-         *  - 2 LEFT/RIGHT 1 UP/DOWN
-         *  - 1 LEFT/RIGHT 2 UP/DOWN
-         */
-        public override bool CanMove(Cell from, Cell to)
+       public override List<Tuple<int, int>> MovePattern => new List<Tuple<int, int>>{
+            new Tuple<int, int>(1, 2),
+            new Tuple<int, int>(1, -2),
+            new Tuple<int, int>(-1, 2),
+            new Tuple<int, int>(-1,-2),
+            new Tuple<int, int>(2, 1),
+            new Tuple<int, int>(2, -1),
+            new Tuple<int, int>(-2, 1),
+            new Tuple<int, int>(-2, -1)
+        };
+
+        public override List<ChessMove> AvailableMoves(Cell currentCell, ChessBoard board)
         {
-            if (Math.Abs(to.X - from.X) + Math.Abs(to.Y - from.Y) == 3)
+            var availableMoves = new List<ChessMove>();
+
+            foreach (var pattern in MovePattern)
             {
-                return true;
+                var directionX = pattern.Item1;
+                var directionY = pattern.Item2;
+
+                var newCell =
+                    board.Cells.SingleOrDefault(
+                        cell => cell.X == currentCell.X + directionX && cell.Y == currentCell.Y + directionY);
+
+                if (newCell == null)
+                {
+                    continue;
+                }
+
+                if (newCell.Piece == null)
+                {
+                    availableMoves.Add(new ChessMove(currentCell, newCell, ChessAction.MOVE));
+
+                    continue;
+                }
+
+                if (newCell.Piece.Color == currentCell.Piece.Color)
+                {
+                    continue;
+                }
+
+                if (newCell.Piece.Color != currentCell.Piece.Color)
+                {
+                    availableMoves.Add(new ChessMove(currentCell, newCell, ChessAction.KILL));
+                }
             }
 
-            return false;
+            return availableMoves;
         }
     }
 
     public class Queen : ChessPiece
     {
-        /* Queens can move in any direction from their current position
-         * 
-         */
-        public override bool CanMove(Cell from, Cell to)
+        public override List<Tuple<int, int>> MovePattern => new List<Tuple<int, int>>{
+            new Tuple<int, int>(1, 1),
+            new Tuple<int, int>(1, -1),
+            new Tuple<int, int>(-1, 1),
+            new Tuple<int, int>(-1,-1),
+            new Tuple<int, int>(0, 1),
+            new Tuple<int, int>(0, -1),
+            new Tuple<int, int>(1, 0),
+            new Tuple<int, int>(-1, 0),
+        };
+
+        public override List<ChessMove> AvailableMoves(Cell currentCell, ChessBoard board)
         {
-            throw new NotImplementedException();
+            return base.AvailableMoves(MovePattern, currentCell, board);
         }
     }
 
     public class Bishop : ChessPiece
     {
-        public override bool CanMove(Cell from, Cell to)
+        public override List<Tuple<int, int>> MovePattern => new List<Tuple<int, int>>{
+            new Tuple<int, int>(1, 1),
+            new Tuple<int, int>(1, -1),
+            new Tuple<int, int>(-1, 1),
+            new Tuple<int, int>(-1,-1),
+        };
+
+        public override List<ChessMove> AvailableMoves(Cell currentCell, ChessBoard board)
         {
-            if (from.x)
+            return base.AvailableMoves(MovePattern, currentCell, board);
         }
     }
 
     public class Rook : ChessPiece
     {
-        public override bool CanMove(Cell from, Cell to)
+        public override List<Tuple<int, int>> MovePattern => new List<Tuple<int, int>>{
+            new Tuple<int, int>(1, 0),
+            new Tuple<int, int>(-1, 0),
+            new Tuple<int, int>(0, 1),
+            new Tuple<int, int>(0,-1),
+        };
+
+        public override List<ChessMove> AvailableMoves(Cell currentCell, ChessBoard board)
         {
-            throw new NotImplementedException();
+            return base.AvailableMoves(MovePattern, currentCell, board);
         }
     }
 }
