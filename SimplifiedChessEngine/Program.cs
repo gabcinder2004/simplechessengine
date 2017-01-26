@@ -2,9 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 
-namespace SimplifiedChessEngine
-{
-    class Program
+    class Solution
     {
         // args[0] = "1"
         // args[1] = "2 1 1"
@@ -14,6 +12,20 @@ namespace SimplifiedChessEngine
 
         static void Main(string[] args)
         {
+            var listArgs = args.ToList();
+            listArgs.Add(Console.ReadLine());
+            listArgs.Add(Console.ReadLine());
+
+            var splitArg = listArgs.ElementAt(1).Split(' ').ToList();
+            var totalPieces = Convert.ToInt32(splitArg[0]) + Convert.ToInt32(splitArg[1]);
+
+            for (int i = 0; i < totalPieces; i++)
+            {
+                listArgs.Add(Console.ReadLine());
+            }
+
+            args = listArgs.ToArray();
+
             var game = new ChessGame()
             {
                 ChessBoard = new ChessBoard(),
@@ -21,72 +33,13 @@ namespace SimplifiedChessEngine
             };
 
             game.Initialize(args);
-        }
-    }
 
-    public class ChessMove
-    {
-        public Cell From { get; set; }
-        public Cell To { get; set; }
+            var solver = new GameSolver(game);
 
-        public ChessAction Action { get; set; }
+            solver.NextPlay(game.ChessBoard, ChessColor.White, new List<ChessMove>());
+            Console.WriteLine(solver.GameWon ? "YES" : "NO");
 
-        public ChessMove(Cell @from, Cell to, ChessAction action)
-        {
-            From = @from;
-            To = to;
-            Action = action;
-        }
-
-        public override string ToString()
-        {
-            return $"{From}:{To} - {Action}";
-        }
-    }
-
-    public enum ChessAction
-    {
-        MOVE,
-        KILL
-    }
-
-    public class GameSolver
-    {
-        public bool GameWon = false;
-        public ChessGame Game { get; set; }
-        public List<ChessMove> AllMoves { get; set; }
-        public ChessMove BestMove { get; set; }
-
-        public GameSolver(ChessGame game)
-        {
-            Game = game;
-        }
-
-        public List<ChessMove> BestPlay(ChessBoard board, ChessColor colorTurn, int turnNumber)
-        {
-            var moves = new List<ChessMove>();
-
-            if (GameWon)
-            {
-                return moves;
-            }
-
-            if (turnNumber > Game.TotalMovesAllowed)
-            {
-                return new List<ChessMove>();
-            }
-
-            if (colorTurn == ChessColor.White)
-            {
-                throw new NotImplementedException();
-            }
-
-            if (colorTurn == ChessColor.Black)
-            {
-                throw new NotImplementedException();
-            }
-
-            return new List<ChessMove>();
+            Console.ReadLine();
         }
     }
 
@@ -139,6 +92,143 @@ namespace SimplifiedChessEngine
         }
     }
 
+    public class ChessBoard
+    {
+        public const int MaxX = 4;
+        public const int MaxY = 4;
+        public List<Cell> Cells { get; set; }
+
+        public ChessBoard()
+        {
+            Cells = new List<Cell>();
+        }
+
+        public void MakeMove(ChessMove move)
+        {
+            var from = Cells.Find(x => x.Equals(move.From));
+            var to = Cells.Find(x => x.Equals(move.To));
+
+            to.Piece = from.Piece;
+            from.Piece = null;
+        }
+
+        public ChessBoard Clone()
+        {
+            var board = new ChessBoard();
+            board.Cells = Cells.Select(item => (Cell)item.Clone()).ToList();
+            return board;
+        }
+    }
+
+    public class GameSolver
+    {
+        public bool GameWon = false;
+        public ChessGame Game { get; set; }
+        public List<ChessMove> WinningMoves { get; set; }
+        public ChessMove BestMove { get; set; }
+
+        public GameSolver(ChessGame game)
+        {
+            Game = game;
+            WinningMoves = new List<ChessMove>();
+        }
+
+        public List<ChessMove> NextPlay(ChessBoard board, ChessColor colorTurn, List<ChessMove> allMoves)
+        {
+            var moves = new List<ChessMove>();
+
+            if (GameWon)
+            {
+                return moves;
+            }
+
+            if (allMoves.Count(x => x.Turn == ChessColor.White) >= Game.TotalMovesAllowed)
+            {
+                return new List<ChessMove>();
+            }
+
+            var cells = board.Cells.Where(cell => cell.Piece != null && cell.Piece.Color == colorTurn).ToList();
+            foreach (var cell in cells)
+            {
+                var availableMoves = cell.Piece.AvailableMoves(cell, board);
+                foreach (var move in availableMoves)
+                {
+                    var currentMoves = new List<ChessMove>();
+                    currentMoves.AddRange(allMoves);
+                    var newBoard = (ChessBoard)board.Clone();
+
+                    newBoard.MakeMove(move);
+                    currentMoves.Add(move);
+
+                    var blackQueenAlive = false;
+                    var whiteQueenAlive = false;
+
+                    foreach (var c in newBoard.Cells)
+                    {
+                        if (c.Piece == null)
+                        {
+                            continue;
+                        }
+
+                        if (c.Piece.Color == ChessColor.Black && c.Piece.GetType() == typeof(Queen))
+                        {
+                            blackQueenAlive = true;
+                        }
+
+                        if (c.Piece.Color == ChessColor.White && c.Piece.GetType() == typeof(Queen))
+                        {
+                            whiteQueenAlive = true;
+                        }
+                    }
+
+                    if (!blackQueenAlive)
+                    {
+                        GameWon = true;
+                        WinningMoves = currentMoves;
+                        return WinningMoves;
+                    }
+
+                    if (!whiteQueenAlive)
+                    {
+                        return new List<ChessMove>();
+                    }
+
+                    var nextColor = colorTurn == ChessColor.White ? ChessColor.Black : ChessColor.White;
+                    var m = NextPlay(newBoard, nextColor, currentMoves);
+
+                    if (GameWon)
+                    {
+                        return m;
+                    }
+                }
+            }
+
+            return new List<ChessMove>();
+        }
+    }
+
+    public class ChessMove
+    {
+        public Cell From { get; set; }
+        public Cell To { get; set; }
+
+        public ChessAction Action { get; set; }
+        public ChessColor Turn { get; set; }
+
+        public ChessMove(Cell @from, Cell to, ChessAction action, ChessColor turn)
+        {
+            From = @from;
+            To = to;
+            Action = action;
+            Turn = turn;
+        }
+
+        public override string ToString()
+        {
+            return string.Format("{0} | {1}:{2} | {3}", Turn, From, To, Action);
+        }
+    }
+
     public static class ChessUtility
     {
         public static Dictionary<string, int> LetterToNumber = new Dictionary<string, int>()
@@ -158,24 +248,16 @@ namespace SimplifiedChessEngine
         };
     }
 
-    public class ChessBoard
-    {
-        public const int MaxX = 4;
-        public const int MaxY = 4;
-        public List<Cell> Cells { get; set; }
-
-        public ChessBoard()
-        {
-            Cells = new List<Cell>();
-        }
-    }
-
-    public class Cell
+    public class Cell : ICloneable
     {
         public int X { get; set; }
         public int Y { get; set; }
         public ChessPiece Piece { get; set; }
-        public string Position => ChessUtility.NumberToLetter[X] + Y;
+
+        public string Position
+        {
+            get { return ChessUtility.NumberToLetter[X] + Y; }
+        }
 
         public Cell(ChessPiece piece, int x, int y)
         {
@@ -193,12 +275,172 @@ namespace SimplifiedChessEngine
         {
             return Position;
         }
+
+        public override bool Equals(object obj)
+        {
+            var other = obj as Cell;
+
+            if (other != null && (X == other.X && Y == other.Y))
+            {
+                return true;
+            }
+
+            return false;
+        }
+
+        protected bool Equals(Cell other)
+        {
+            return X == other.X && Y == other.Y;
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                var hashCode = X;
+                hashCode = (hashCode*397) ^ Y;
+                hashCode = (hashCode*397) ^ (Piece != null ? Piece.GetHashCode() : 0);
+                return hashCode;
+            }
+        }
+
+        public object Clone()
+        {
+            return new Cell(Piece, X, Y);
+        }
     }
 
-    public enum ChessColor
+    public class Knight : ChessPiece
     {
-        White,
-        Black
+        public override List<Tuple<int, int>> MovePattern
+        {
+            get
+            {
+                return new List<Tuple<int, int>>
+                {
+                    new Tuple<int, int>(1, 2),
+                    new Tuple<int, int>(1, -2),
+                    new Tuple<int, int>(-1, 2),
+                    new Tuple<int, int>(-1,-2),
+                    new Tuple<int, int>(2, 1),
+                    new Tuple<int, int>(2, -1),
+                    new Tuple<int, int>(-2, 1),
+                    new Tuple<int, int>(-2, -1)
+                };
+            }
+        }
+
+        public override List<ChessMove> AvailableMoves(Cell currentCell, ChessBoard board)
+        {
+            var availableMoves = new List<ChessMove>();
+
+            foreach (var pattern in MovePattern)
+            {
+                var directionX = pattern.Item1;
+                var directionY = pattern.Item2;
+
+                var newCell =
+                    board.Cells.SingleOrDefault(
+                        cell => cell.X == currentCell.X + directionX && cell.Y == currentCell.Y + directionY);
+
+                if (newCell == null)
+                {
+                    continue;
+                }
+
+                if (newCell.Piece == null)
+                {
+                    availableMoves.Add(new ChessMove(currentCell, newCell, ChessAction.MOVE, currentCell.Piece.Color));
+
+                    continue;
+                }
+
+                if (newCell.Piece.Color == currentCell.Piece.Color)
+                {
+                    continue;
+                }
+
+                if (newCell.Piece.Color != currentCell.Piece.Color)
+                {
+                    availableMoves.Add(new ChessMove(currentCell, newCell, ChessAction.KILL, currentCell.Piece.Color));
+                }
+            }
+
+            return availableMoves;
+        }
+    }
+
+    public class Bishop : ChessPiece
+    {
+        public override List<Tuple<int, int>> MovePattern
+        {
+            get
+            {
+                return new List<Tuple<int, int>>
+                {
+                    new Tuple<int, int>(1, 1),
+                    new Tuple<int, int>(1, -1),
+                    new Tuple<int, int>(-1, 1),
+                    new Tuple<int, int>(-1,-1),
+                };
+
+            }
+        }
+
+        public override List<ChessMove> AvailableMoves(Cell currentCell, ChessBoard board)
+        {
+            return base.AvailableMoves(MovePattern, currentCell, board);
+        }
+    }
+
+    public class Rook : ChessPiece
+    {
+        public override List<Tuple<int, int>> MovePattern
+        {
+            get
+            {
+                return new List<Tuple<int, int>>
+                {
+                    new Tuple<int, int>(1, 0),
+                    new Tuple<int, int>(-1, 0),
+                    new Tuple<int, int>(0, 1),
+                    new Tuple<int, int>(0,-1),
+                };
+
+            }
+        }
+
+        public override List<ChessMove> AvailableMoves(Cell currentCell, ChessBoard board)
+        {
+            return base.AvailableMoves(MovePattern, currentCell, board);
+        }
+    }
+
+    public class Queen : ChessPiece
+    {
+        public override List<Tuple<int, int>> MovePattern
+        {
+            get
+            {
+                return new List<Tuple<int, int>>
+                {
+                    new Tuple<int, int>(1, 1),
+                    new Tuple<int, int>(1, -1),
+                    new Tuple<int, int>(-1, 1),
+                    new Tuple<int, int>(-1, -1),
+                    new Tuple<int, int>(0, 1),
+                    new Tuple<int, int>(0, -1),
+                    new Tuple<int, int>(1, 0),
+                    new Tuple<int, int>(-1, 0),
+                };
+
+            }
+        }
+
+        public override List<ChessMove> AvailableMoves(Cell currentCell, ChessBoard board)
+        {
+            return base.AvailableMoves(MovePattern, currentCell, board);
+        }
     }
 
     public abstract class ChessPiece
@@ -248,7 +490,7 @@ namespace SimplifiedChessEngine
 
                     if (newCell.Piece == null)
                     {
-                        availableMoves.Add(new ChessMove(currentCell, newCell, ChessAction.MOVE));
+                        availableMoves.Add(new ChessMove(currentCell, newCell, ChessAction.MOVE, currentCell.Piece.Color));
 
                         if (directionX != 0)
                         {
@@ -270,7 +512,7 @@ namespace SimplifiedChessEngine
 
                     if (newCell.Piece.Color != currentCell.Piece.Color)
                     {
-                        availableMoves.Add(new ChessMove(currentCell, newCell, ChessAction.KILL));
+                        availableMoves.Add(new ChessMove(currentCell, newCell, ChessAction.KILL, currentCell.Piece.Color));
 
                         directionX = (directionX > 0) ? directionX + 1 : directionX - 1;
                         directionY = (directionY > 0) ? directionY + 1 : directionY - 1;
@@ -282,105 +524,15 @@ namespace SimplifiedChessEngine
         }
     }
 
-    public class Knight : ChessPiece
+    public enum ChessColor
     {
-       public override List<Tuple<int, int>> MovePattern => new List<Tuple<int, int>>{
-            new Tuple<int, int>(1, 2),
-            new Tuple<int, int>(1, -2),
-            new Tuple<int, int>(-1, 2),
-            new Tuple<int, int>(-1,-2),
-            new Tuple<int, int>(2, 1),
-            new Tuple<int, int>(2, -1),
-            new Tuple<int, int>(-2, 1),
-            new Tuple<int, int>(-2, -1)
-        };
-
-        public override List<ChessMove> AvailableMoves(Cell currentCell, ChessBoard board)
-        {
-            var availableMoves = new List<ChessMove>();
-
-            foreach (var pattern in MovePattern)
-            {
-                var directionX = pattern.Item1;
-                var directionY = pattern.Item2;
-
-                var newCell =
-                    board.Cells.SingleOrDefault(
-                        cell => cell.X == currentCell.X + directionX && cell.Y == currentCell.Y + directionY);
-
-                if (newCell == null)
-                {
-                    continue;
-                }
-
-                if (newCell.Piece == null)
-                {
-                    availableMoves.Add(new ChessMove(currentCell, newCell, ChessAction.MOVE));
-
-                    continue;
-                }
-
-                if (newCell.Piece.Color == currentCell.Piece.Color)
-                {
-                    continue;
-                }
-
-                if (newCell.Piece.Color != currentCell.Piece.Color)
-                {
-                    availableMoves.Add(new ChessMove(currentCell, newCell, ChessAction.KILL));
-                }
-            }
-
-            return availableMoves;
-        }
+        None,
+        White,
+        Black
     }
 
-    public class Queen : ChessPiece
+    public enum ChessAction
     {
-        public override List<Tuple<int, int>> MovePattern => new List<Tuple<int, int>>{
-            new Tuple<int, int>(1, 1),
-            new Tuple<int, int>(1, -1),
-            new Tuple<int, int>(-1, 1),
-            new Tuple<int, int>(-1,-1),
-            new Tuple<int, int>(0, 1),
-            new Tuple<int, int>(0, -1),
-            new Tuple<int, int>(1, 0),
-            new Tuple<int, int>(-1, 0),
-        };
-
-        public override List<ChessMove> AvailableMoves(Cell currentCell, ChessBoard board)
-        {
-            return base.AvailableMoves(MovePattern, currentCell, board);
-        }
+        MOVE,
+        KILL
     }
-
-    public class Bishop : ChessPiece
-    {
-        public override List<Tuple<int, int>> MovePattern => new List<Tuple<int, int>>{
-            new Tuple<int, int>(1, 1),
-            new Tuple<int, int>(1, -1),
-            new Tuple<int, int>(-1, 1),
-            new Tuple<int, int>(-1,-1),
-        };
-
-        public override List<ChessMove> AvailableMoves(Cell currentCell, ChessBoard board)
-        {
-            return base.AvailableMoves(MovePattern, currentCell, board);
-        }
-    }
-
-    public class Rook : ChessPiece
-    {
-        public override List<Tuple<int, int>> MovePattern => new List<Tuple<int, int>>{
-            new Tuple<int, int>(1, 0),
-            new Tuple<int, int>(-1, 0),
-            new Tuple<int, int>(0, 1),
-            new Tuple<int, int>(0,-1),
-        };
-
-        public override List<ChessMove> AvailableMoves(Cell currentCell, ChessBoard board)
-        {
-            return base.AvailableMoves(MovePattern, currentCell, board);
-        }
-    }
-}
