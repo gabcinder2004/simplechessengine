@@ -2,7 +2,9 @@
 using System.Collections.Generic;
 using System.Linq;
 
-    class Solution
+namespace SimplifiedChessEngine
+{
+    internal class Solution
     {
         // args[0] = "1"
         // args[1] = "2 1 1"
@@ -12,34 +14,55 @@ using System.Linq;
 
         static void Main(string[] args)
         {
-            var listArgs = args.ToList();
-            listArgs.Add(Console.ReadLine());
-            listArgs.Add(Console.ReadLine());
-
-            var splitArg = listArgs.ElementAt(1).Split(' ').ToList();
-            var totalPieces = Convert.ToInt32(splitArg[0]) + Convert.ToInt32(splitArg[1]);
-
-            for (int i = 0; i < totalPieces; i++)
+            var games = GameFactory.CreateAllGames();
+            var gameSolutions = new List<GameSolver>();
+            foreach (var game in games)
             {
-                listArgs.Add(Console.ReadLine());
+                var solver = new GameSolver(game);
+                var solution = solver.NextPlay(game.ChessBoard, ChessColor.White, new List<ChessMove>());
+                gameSolutions.Add(solver);
+                Console.WriteLine(solver.GameWon ? "YES" : "NO");
             }
 
-            args = listArgs.ToArray();
-
-            var game = new ChessGame()
-            {
-                ChessBoard = new ChessBoard(),
-                CurrentMoveCount = 0,
-            };
-
-            game.Initialize(args);
-
-            var solver = new GameSolver(game);
-
-            solver.NextPlay(game.ChessBoard, ChessColor.White, new List<ChessMove>());
-            Console.WriteLine(solver.GameWon ? "YES" : "NO");
-
             Console.ReadLine();
+        }
+    }
+
+    public static class GameFactory
+    {
+        public static List<ChessGame> CreateAllGames()
+        {
+            var games = new List<ChessGame>();
+            var totalGames = Convert.ToInt32(Console.ReadLine());
+
+            for (int i = 0; i < totalGames; i++)
+            {
+                var listArgs = new List<string>() { totalGames.ToString() };
+
+                var gameInfo = Console.ReadLine();
+                listArgs.Add(gameInfo);
+
+                var splitArg = listArgs[1].Split(' ').ToList();
+                var totalPieces = Convert.ToInt32(splitArg[0]) + Convert.ToInt32(splitArg[1]);
+
+                for (int j = 0; j < totalPieces; j++)
+                {
+                    listArgs.Add(Console.ReadLine());
+                }
+
+                var args = listArgs.ToArray();
+
+                var game = new ChessGame()
+                {
+                    ChessBoard = new ChessBoard(),
+                    CurrentMoveCount = 0,
+                };
+
+                game.Initialize(args);
+                games.Add(game);
+            }
+
+            return games;
         }
     }
 
@@ -133,7 +156,7 @@ using System.Linq;
             WinningMoves = new List<ChessMove>();
         }
 
-        public List<ChessMove> NextPlay(ChessBoard board, ChessColor colorTurn, List<ChessMove> allMoves)
+        public List<ChessMove> NextPlay(ChessBoard board, ChessColor colorTurn, List<ChessMove> allMoves, bool queenChecked)
         {
             var moves = new List<ChessMove>();
 
@@ -142,7 +165,7 @@ using System.Linq;
                 return moves;
             }
 
-            if (allMoves.Count(x => x.Turn == ChessColor.White) >= Game.TotalMovesAllowed)
+            if (allMoves.Count() >= Game.TotalMovesAllowed)
             {
                 return new List<ChessMove>();
             }
@@ -151,6 +174,23 @@ using System.Linq;
             foreach (var cell in cells)
             {
                 var availableMoves = cell.Piece.AvailableMoves(cell, board);
+
+                // if there is a move to to kill 
+                if (availableMoves.Any(move => move.To.Piece.GetType() == typeof(Queen) && move.Action == ChessAction.KILL))
+                {
+                    var move = availableMoves.First(m => m.To.Piece.GetType() == typeof(Queen) && m.Action == ChessAction.KILL);
+
+                    if (colorTurn == ChessColor.White)
+                    {
+                        allMoves.Add(move);
+
+                        GameWon = true;
+                        WinningMoves = allMoves;
+                        return WinningMoves;
+                    }
+                    return new List<ChessMove>();
+                }
+
                 foreach (var move in availableMoves)
                 {
                     var currentMoves = new List<ChessMove>();
@@ -159,39 +199,6 @@ using System.Linq;
 
                     newBoard.MakeMove(move);
                     currentMoves.Add(move);
-
-                    var blackQueenAlive = false;
-                    var whiteQueenAlive = false;
-
-                    foreach (var c in newBoard.Cells)
-                    {
-                        if (c.Piece == null)
-                        {
-                            continue;
-                        }
-
-                        if (c.Piece.Color == ChessColor.Black && c.Piece.GetType() == typeof(Queen))
-                        {
-                            blackQueenAlive = true;
-                        }
-
-                        if (c.Piece.Color == ChessColor.White && c.Piece.GetType() == typeof(Queen))
-                        {
-                            whiteQueenAlive = true;
-                        }
-                    }
-
-                    if (!blackQueenAlive)
-                    {
-                        GameWon = true;
-                        WinningMoves = currentMoves;
-                        return WinningMoves;
-                    }
-
-                    if (!whiteQueenAlive)
-                    {
-                        return new List<ChessMove>();
-                    }
 
                     var nextColor = colorTurn == ChessColor.White ? ChessColor.Black : ChessColor.White;
                     var m = NextPlay(newBoard, nextColor, currentMoves);
@@ -225,7 +232,9 @@ using System.Linq;
 
         public override string ToString()
         {
-            return string.Format("{0} | {1}:{2} | {3}", Turn, From, To, Action);
+            var piece = From.Piece.GetType();
+
+            return string.Format("{0} {4}| {1}:{2} | {3}", Turn, From, To, Action, piece.Name);
         }
     }
 
@@ -298,8 +307,8 @@ using System.Linq;
             unchecked
             {
                 var hashCode = X;
-                hashCode = (hashCode*397) ^ Y;
-                hashCode = (hashCode*397) ^ (Piece != null ? Piece.GetHashCode() : 0);
+                hashCode = (hashCode * 397) ^ Y;
+                hashCode = (hashCode * 397) ^ (Piece != null ? Piece.GetHashCode() : 0);
                 return hashCode;
             }
         }
@@ -536,3 +545,4 @@ using System.Linq;
         MOVE,
         KILL
     }
+}
