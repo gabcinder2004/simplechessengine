@@ -190,13 +190,14 @@ namespace SimplifiedChessEngine
             var cells = board.Cells.Where(cell => cell.Piece != null && cell.Piece.Color == colorTurn).OrderBy(x => x.Piece.GetType() != typeof(Queen)).ToList();
             foreach (var cell in cells)
             {
-                var availableMoves = cell.Piece.GetAvailableMoves(cell, board);
+                bool protectPiece = cell.Piece.GetType() == typeof(Queen) && cell.Piece.Color == colorTurn;
+                var availableMoves = cell.Piece.GetAvailableMoves(cell, board, protectPiece);
 
                 // if it is possible to kill the opposing queen, do it.
-                if (availableMoves.Any(move => move.To.Piece.GetType() == typeof(Queen) && move.Action == ChessAction.KILL))
+                if (availableMoves.Any(move => move.To.Piece != null && move.To.Piece.GetType() == typeof(Queen) && move.Action == ChessAction.KILL))
                 {
-                    var move = availableMoves.First(m => m.To.Piece.GetType() == typeof(Queen) && m.Action == ChessAction.KILL);
-
+                    var move = availableMoves.First(m => m.To.Piece != null && m.To.Piece.GetType() == typeof(Queen) && m.Action == ChessAction.KILL);
+                    
                     if (colorTurn != ChessColor.White) return new List<ChessMove>();
 
                     allMoves.Add(move);
@@ -241,7 +242,7 @@ namespace SimplifiedChessEngine
 
         public abstract List<Tuple<int, int>> MovePattern { get; }
 
-        public abstract List<ChessMove> GetAvailableMoves(Cell currentCell, ChessBoard board);
+        public abstract List<ChessMove> GetAvailableMoves(Cell currentCell, ChessBoard board, bool protectPiece = false);
 
         public List<ChessMove> AvailableMoves { get; set; }
 
@@ -262,7 +263,7 @@ namespace SimplifiedChessEngine
             }
         }
 
-        protected List<ChessMove> GetAvailableMoves(List<Tuple<int, int>> movePattern, Cell currentCell, ChessBoard board)
+        protected List<ChessMove> GetAvailableMoves(List<Tuple<int, int>> movePattern, Cell currentCell, ChessBoard board, bool protectPiece)
         {
             var availableMoves = new List<ChessMove>();
 
@@ -283,21 +284,29 @@ namespace SimplifiedChessEngine
                     var action = newCell.Piece == null ? ChessAction.MOVE : ChessAction.KILL;
 
                     // Check if queen will be threatened if she makes this move
-                    if (currentCell.Piece.GetType() == typeof(Queen))
+                    if (protectPiece)
                     {
                         var moveInQuestion = new ChessMove(currentCell, newCell, action, currentCell.Piece.Color);
 
                         var newBoard = board.Clone();
                         newBoard.MakeMove(moveInQuestion);
-                        var newQueenCell = newBoard.Cells.First(cell => cell.Piece.GetType() == typeof(Queen));
+                        var newQueenCell = newBoard.Cells.First(cell => cell.Piece != null && cell.Piece.GetType() == typeof(Queen) && cell.Piece.Color == currentCell.Piece.Color);
 
                         if (newQueenCell.Piece.IsThreatened(newQueenCell, newBoard))
                         {
-                            continue;
+                            break;
                         }
                     }
 
                     availableMoves.Add(new ChessMove(currentCell, newCell, action, currentCell.Piece.Color));
+
+                    if (action == ChessAction.MOVE)
+                    {
+                        directionX += directionX;
+                        directionY += directionY;
+                        continue;
+                    }
+
                     break;
                 }
             }
@@ -307,8 +316,10 @@ namespace SimplifiedChessEngine
 
         public virtual bool IsThreatened(Cell currentCell, ChessBoard board)
         {
-            return board.Cells.Where(cell => cell.Piece.Color != currentCell.Piece.Color)
-                .Any(cell => cell.Piece.AvailableMoves
+            board.Cells.Where(cell => cell.Piece != null && cell.X != currentCell.X && cell.Y != currentCell.Y).ToList().ForEach(x => x.Piece.GetAvailableMoves(x, board, false));
+
+            return board.Cells.Where(cell =>cell.Piece != null && cell.Piece.Color != currentCell.Piece.Color)
+                .Any(cell => cell.Piece.AvailableMoves != null && cell.Piece.AvailableMoves
                 .Any(move => move.Action == ChessAction.KILL && move.To.X == currentCell.X && move.To.Y == currentCell.Y));
         }
     }
@@ -438,7 +449,7 @@ namespace SimplifiedChessEngine
             }
         }
 
-        public override List<ChessMove> GetAvailableMoves(Cell currentCell, ChessBoard board)
+        public override List<ChessMove> GetAvailableMoves(Cell currentCell, ChessBoard board, bool protectPiece)
         {
             var availableMoves = new List<ChessMove>();
 
@@ -496,9 +507,9 @@ namespace SimplifiedChessEngine
             }
         }
 
-        public override List<ChessMove> GetAvailableMoves(Cell currentCell, ChessBoard board)
+        public override List<ChessMove> GetAvailableMoves(Cell currentCell, ChessBoard board, bool protectPiece = false)
         {
-            AvailableMoves = base.GetAvailableMoves(MovePattern, currentCell, board);
+            AvailableMoves = base.GetAvailableMoves(MovePattern, currentCell, board, protectPiece);
             return AvailableMoves;
         }
     }
@@ -520,9 +531,9 @@ namespace SimplifiedChessEngine
             }
         }
 
-        public override List<ChessMove> GetAvailableMoves(Cell currentCell, ChessBoard board)
+        public override List<ChessMove> GetAvailableMoves(Cell currentCell, ChessBoard board, bool protectPiece = false)
         {
-            AvailableMoves = base.GetAvailableMoves(MovePattern, currentCell, board);
+            AvailableMoves = base.GetAvailableMoves(MovePattern, currentCell, board, protectPiece);
             return AvailableMoves;
         }
     }
@@ -548,9 +559,9 @@ namespace SimplifiedChessEngine
             }
         }
 
-        public override List<ChessMove> GetAvailableMoves(Cell currentCell, ChessBoard board)
+        public override List<ChessMove> GetAvailableMoves(Cell currentCell, ChessBoard board, bool protectPiece = false)
         {
-            AvailableMoves = base.GetAvailableMoves(MovePattern, currentCell, board);
+            AvailableMoves = base.GetAvailableMoves(MovePattern, currentCell, board, protectPiece);
             return AvailableMoves;
         }
     }
