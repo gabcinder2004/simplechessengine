@@ -6,15 +6,32 @@ namespace SimplifiedChessEngine
 {
     internal class Solution
     {
-        // args[0] = "1"
-        // args[1] = "2 1 1"
-        // args[2] = "N B 2"
-        // args[3] = "Q B 1"
-        // args[4] = "Q A 4"
+        /*
+        5 3 6
+        B B 1
+        R C 2
+        R C 4
+        N A 4
+        Q B 3
+        R D 3
+        N C 3
+        Q D 1
+        */
+
+        /*
+        2 1 1
+        Q B 1
+        N B 2
+        Q A 4
+        */
 
         static void Main(string[] args)
         {
             var games = GameFactory.CreateAllGames();
+
+            //var cell = games.First().ChessBoard.Cells.First(x => x.Piece.GetType() == typeof(Queen) && x.Piece.Color == ChessColor.White);
+            //var moves = cell.Piece.GetAvailableMoves(cell, games.First().ChessBoard);
+
             var gameSolutions = new List<GameSolver>();
             foreach (var game in games)
             {
@@ -156,7 +173,7 @@ namespace SimplifiedChessEngine
             WinningMoves = new List<ChessMove>();
         }
 
-        public List<ChessMove> NextPlay(ChessBoard board, ChessColor colorTurn, List<ChessMove> allMoves, bool queenChecked)
+        public List<ChessMove> NextPlay(ChessBoard board, ChessColor colorTurn, List<ChessMove> allMoves)
         {
             var moves = new List<ChessMove>();
 
@@ -170,27 +187,31 @@ namespace SimplifiedChessEngine
                 return new List<ChessMove>();
             }
 
-            var cells = board.Cells.Where(cell => cell.Piece != null && cell.Piece.Color == colorTurn).ToList();
+            var cells = board.Cells.Where(cell => cell.Piece != null && cell.Piece.Color == colorTurn).OrderBy(x => x.Piece.GetType() != typeof(Queen)).ToList();
             foreach (var cell in cells)
             {
-                var availableMoves = cell.Piece.AvailableMoves(cell, board);
+                var availableMoves = cell.Piece.GetAvailableMoves(cell, board);
 
-                // if there is a move to to kill 
+                // if it is possible to kill the opposing queen, do it.
                 if (availableMoves.Any(move => move.To.Piece.GetType() == typeof(Queen) && move.Action == ChessAction.KILL))
                 {
                     var move = availableMoves.First(m => m.To.Piece.GetType() == typeof(Queen) && m.Action == ChessAction.KILL);
 
-                    if (colorTurn == ChessColor.White)
-                    {
-                        allMoves.Add(move);
+                    if (colorTurn != ChessColor.White) return new List<ChessMove>();
 
-                        GameWon = true;
-                        WinningMoves = allMoves;
-                        return WinningMoves;
-                    }
-                    return new List<ChessMove>();
+                    allMoves.Add(move);
+                    GameWon = true;
+                    WinningMoves = allMoves;
+                    return WinningMoves;
                 }
 
+                //if our queen is under threat, run.
+                if (cell.Piece.GetType() == typeof(Queen) && cell.Piece.IsThreatened(cell, board))
+                {
+                    availableMoves = availableMoves.Where(move => move.From.Piece.GetType() == typeof(Queen)).ToList();
+                }
+
+                //Queen cannot be killed this turn, find next move.
                 foreach (var move in availableMoves)
                 {
                     var currentMoves = new List<ChessMove>();
@@ -211,6 +232,84 @@ namespace SimplifiedChessEngine
             }
 
             return new List<ChessMove>();
+        }
+    }
+
+    public abstract class ChessPiece
+    {
+        public ChessColor Color { get; set; }
+
+        public abstract List<Tuple<int, int>> MovePattern { get; }
+
+        public abstract List<ChessMove> GetAvailableMoves(Cell currentCell, ChessBoard board);
+
+        public List<ChessMove> AvailableMoves { get; set; }
+
+        public static ChessPiece Create(string letter)
+        {
+            switch (letter)
+            {
+                case "Q":
+                    return new Queen();
+                case "N":
+                    return new Knight();
+                case "B":
+                    return new Bishop();
+                case "R":
+                    return new Rook();
+                default:
+                    throw new Exception("Cannot create chess piece: Invalid Type");
+            }
+        }
+
+        protected List<ChessMove> GetAvailableMoves(List<Tuple<int, int>> movePattern, Cell currentCell, ChessBoard board)
+        {
+            var availableMoves = new List<ChessMove>();
+
+            foreach (var pattern in movePattern)
+            {
+                var directionX = pattern.Item1;
+                var directionY = pattern.Item2;
+
+                while (true)
+                {
+                    var newCell = board.Cells.SingleOrDefault(cell => cell.X == currentCell.X + directionX && cell.Y == currentCell.Y + directionY);
+
+                    if (newCell == null || newCell.Piece != null && newCell.Piece.Color == currentCell.Piece.Color)
+                    {
+                        break;
+                    }
+
+                    var action = newCell.Piece == null ? ChessAction.MOVE : ChessAction.KILL;
+
+                    // Check if queen will be threatened if she makes this move
+                    if (currentCell.Piece.GetType() == typeof(Queen))
+                    {
+                        var moveInQuestion = new ChessMove(currentCell, newCell, action, currentCell.Piece.Color);
+
+                        var newBoard = board.Clone();
+                        newBoard.MakeMove(moveInQuestion);
+                        var newQueenCell = newBoard.Cells.First(cell => cell.Piece.GetType() == typeof(Queen));
+
+                        if (newQueenCell.Piece.IsThreatened(newQueenCell, newBoard))
+                        {
+                            continue;
+                        }
+                    }
+
+                    availableMoves.Add(new ChessMove(currentCell, newCell, action, currentCell.Piece.Color));
+                    break;
+                }
+            }
+
+            return availableMoves;
+        }
+
+        public virtual bool IsThreatened(Cell currentCell, ChessBoard board)
+        {
+            return board.Cells.Where(cell => cell.Piece.Color != currentCell.Piece.Color)
+                .Any(cell => cell.Piece.AvailableMoves
+                .Any(move => move.Action == ChessAction.KILL && move.To.X == currentCell.X && move.To.Y == currentCell.Y));
         }
     }
 
@@ -339,7 +438,7 @@ namespace SimplifiedChessEngine
             }
         }
 
-        public override List<ChessMove> AvailableMoves(Cell currentCell, ChessBoard board)
+        public override List<ChessMove> GetAvailableMoves(Cell currentCell, ChessBoard board)
         {
             var availableMoves = new List<ChessMove>();
 
@@ -375,7 +474,8 @@ namespace SimplifiedChessEngine
                 }
             }
 
-            return availableMoves;
+            AvailableMoves = availableMoves;
+            return AvailableMoves;
         }
     }
 
@@ -396,9 +496,10 @@ namespace SimplifiedChessEngine
             }
         }
 
-        public override List<ChessMove> AvailableMoves(Cell currentCell, ChessBoard board)
+        public override List<ChessMove> GetAvailableMoves(Cell currentCell, ChessBoard board)
         {
-            return base.AvailableMoves(MovePattern, currentCell, board);
+            AvailableMoves = base.GetAvailableMoves(MovePattern, currentCell, board);
+            return AvailableMoves;
         }
     }
 
@@ -419,9 +520,10 @@ namespace SimplifiedChessEngine
             }
         }
 
-        public override List<ChessMove> AvailableMoves(Cell currentCell, ChessBoard board)
+        public override List<ChessMove> GetAvailableMoves(Cell currentCell, ChessBoard board)
         {
-            return base.AvailableMoves(MovePattern, currentCell, board);
+            AvailableMoves = base.GetAvailableMoves(MovePattern, currentCell, board);
+            return AvailableMoves;
         }
     }
 
@@ -446,92 +548,14 @@ namespace SimplifiedChessEngine
             }
         }
 
-        public override List<ChessMove> AvailableMoves(Cell currentCell, ChessBoard board)
+        public override List<ChessMove> GetAvailableMoves(Cell currentCell, ChessBoard board)
         {
-            return base.AvailableMoves(MovePattern, currentCell, board);
+            AvailableMoves = base.GetAvailableMoves(MovePattern, currentCell, board);
+            return AvailableMoves;
         }
     }
 
-    public abstract class ChessPiece
-    {
-        public ChessColor Color { get; set; }
 
-        public abstract List<Tuple<int, int>> MovePattern { get; }
-
-        public abstract List<ChessMove> AvailableMoves(Cell currentCell, ChessBoard board);
-
-        public static ChessPiece Create(string letter)
-        {
-            switch (letter)
-            {
-                case "Q":
-                    return new Queen();
-                case "N":
-                    return new Knight();
-                case "B":
-                    return new Bishop();
-                case "R":
-                    return new Rook();
-                default:
-                    throw new Exception("Cannot create chess piece: Invalid Type");
-            }
-        }
-
-        protected List<ChessMove> AvailableMoves(List<Tuple<int, int>> movePattern, Cell currentCell, ChessBoard board)
-        {
-            var availableMoves = new List<ChessMove>();
-
-            foreach (var pattern in movePattern)
-            {
-                var directionX = pattern.Item1;
-                var directionY = pattern.Item2;
-
-                while (true)
-                {
-                    var newCell =
-                        board.Cells.SingleOrDefault(
-                            cell => cell.X == currentCell.X + directionX && cell.Y == currentCell.Y + directionY);
-
-                    if (newCell == null)
-                    {
-                        break;
-                    }
-
-                    if (newCell.Piece == null)
-                    {
-                        availableMoves.Add(new ChessMove(currentCell, newCell, ChessAction.MOVE, currentCell.Piece.Color));
-
-                        if (directionX != 0)
-                        {
-                            directionX = (directionX > 0) ? directionX + 1 : directionX - 1;
-                        }
-
-                        if (directionY != 0)
-                        {
-                            directionY = (directionY > 0) ? directionY + 1 : directionY - 1;
-                        }
-
-                        continue;
-                    }
-
-                    if (newCell.Piece.Color == currentCell.Piece.Color)
-                    {
-                        break;
-                    }
-
-                    if (newCell.Piece.Color != currentCell.Piece.Color)
-                    {
-                        availableMoves.Add(new ChessMove(currentCell, newCell, ChessAction.KILL, currentCell.Piece.Color));
-
-                        directionX = (directionX > 0) ? directionX + 1 : directionX - 1;
-                        directionY = (directionY > 0) ? directionY + 1 : directionY - 1;
-                    }
-                }
-            }
-
-            return availableMoves;
-        }
-    }
 
     public enum ChessColor
     {
