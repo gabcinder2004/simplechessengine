@@ -397,7 +397,7 @@ namespace SimplifiedChessEngine
     {
         public bool GameOver;
 
-        public ChessColor Winner = ChessColor.Black;
+        public ChessColor Winner = ChessColor.White;
         public ChessGame Game { get; set; }
         public List<ChessMove> WinningMoves { get; set; }
         public Stopwatch Stopwatch { get; set; }
@@ -419,10 +419,31 @@ namespace SimplifiedChessEngine
 
             if ((allMoves.Count() >= Game.TotalMovesAllowed) || (colorTurn == ChessColor.Black && allMoves.Count == Game.TotalMovesAllowed - 1))
             {
-                return new List<ChessMove>();
+                Winner = ChessColor.Black;
+                GameOver = true;
+                WinningMoves = allMoves;
+                return WinningMoves;
             }
 
             var cells = board.Cells.Where(cell => !cell.IsEmpty() && cell.Piece.Color == colorTurn).OrderBy(x => x.Piece.GetType() != typeof(Queen)).ToList();
+
+            //Can white win first turn?
+            if (allMoves.Count == 0)
+            {
+                cells.Where(x => !x.IsEmpty()).ToList().ForEach(c => c.Piece.GetAvailableMoves(c, board, false));
+
+                var cell = cells.FirstOrDefault(x => !x.IsEmpty() && x.Piece.AvailableMoves.Any(m => !m.To.IsEmpty() && m.To.Piece.GetType() == typeof(Queen) && m.Action == ChessAction.KILL));
+
+                if (cell != null)
+                {
+                    var move = cell.Piece.AvailableMoves.First(m => !m.To.IsEmpty() && m.To.Piece.GetType() == typeof(Queen) && m.Action == ChessAction.KILL);
+                    Winner = ChessColor.White;
+                    GameOver = true;
+                    WinningMoves.Add(move);
+                    return WinningMoves;
+                }
+            }
+
             foreach (var cell in cells)
             {
                 var availableMoves = cell.Piece.GetAvailableMoves(cell, board);
@@ -433,12 +454,12 @@ namespace SimplifiedChessEngine
                     var move = availableMoves.First(m => !m.To.IsEmpty() && m.To.Piece.GetType() == typeof(Queen) && m.Action == ChessAction.KILL);
 
                     // If our queen is going to die, abandon this move path
-                    if (colorTurn != ChessColor.White) return new List<ChessMove>();
+                    if (colorTurn != ChessColor.Black) return new List<ChessMove>();
 
                     // If we can kill the black queen, do it and win.
                     allMoves.Add(move);
                     GameOver = true;
-                    Winner = ChessColor.White;
+                    Winner = ChessColor.Black;
                     WinningMoves = allMoves;
                     return WinningMoves;
                 }
@@ -464,11 +485,11 @@ namespace SimplifiedChessEngine
             }
 
             // If it's blacks turn and they don't have any valid moves.. checkmate.
-            if (colorTurn == ChessColor.Black && !cells.Any(cell => cell.Piece.AvailableMoves.Count > 0))
+            if (colorTurn == ChessColor.White && !cells.Any(cell => cell.Piece.AvailableMoves.Count > 0))
             {
                 WinningMoves = allMoves;
                 GameOver = true;
-                Winner = ChessColor.White;
+                Winner = ChessColor.Black;
                 return WinningMoves;
             }
 
