@@ -43,25 +43,20 @@ namespace SimplifiedChessEngine
             return false;
         }
 
-        protected bool Equals(Cell other)
-        {
-            return X == other.X && Y == other.Y;
-        }
-
         public override int GetHashCode()
         {
             unchecked
             {
                 var hashCode = X;
                 hashCode = (hashCode * 397) ^ Y;
-                hashCode = (hashCode * 397) ^ (Piece != null ? Piece.GetHashCode() : 0);
+                hashCode = (hashCode * 397) ^ (!IsEmpty() ? Piece.GetHashCode() : 0);
                 return hashCode;
             }
         }
 
         public object Clone()
         {
-            return new Cell(Piece == null ? null : Piece.Clone(), X, Y);
+            return new Cell(IsEmpty() ? null : Piece.Clone(), X, Y);
         }
     }
 }

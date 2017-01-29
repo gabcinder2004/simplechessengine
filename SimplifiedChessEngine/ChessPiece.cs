@@ -47,12 +47,12 @@ namespace SimplifiedChessEngine
                     var newCell = board.Cells.SingleOrDefault(cell => cell.X == currentCell.X + directionX && cell.Y == currentCell.Y + directionY);
 
                     // If cell doesn't exist, or the piece on that cell is the same color as the piece trying to move
-                    if (newCell == null || newCell.Piece != null && newCell.Piece.Color == currentCell.Piece.Color)
+                    if (newCell == null || !newCell.IsEmpty() && newCell.Piece.Color == currentCell.Piece.Color)
                     {
                         break;
                     }
 
-                    var action = newCell.Piece == null ? ChessAction.MOVE : ChessAction.KILL;
+                    var action = newCell.IsEmpty() ? ChessAction.MOVE : ChessAction.KILL;
 
                     // Check if queen will be threatened if the current piece makes this move
                     if (protectQueen)
@@ -61,7 +61,7 @@ namespace SimplifiedChessEngine
 
                         var newBoard = board.Clone();
                         newBoard.MakeMove(moveInQuestion);
-                        var newQueenCell = newBoard.Cells.First(cell => cell.Piece != null && cell.Piece.GetType() == typeof(Queen) && cell.Piece.Color == currentCell.Piece.Color);
+                        var newQueenCell = newBoard.Cells.First(cell => !cell.IsEmpty() && cell.Piece.GetType() == typeof(Queen) && cell.Piece.Color == currentCell.Piece.Color);
 
                         if (newBoard.QueenThreatened(newQueenCell))
                         {

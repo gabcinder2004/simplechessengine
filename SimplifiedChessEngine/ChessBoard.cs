@@ -31,11 +31,11 @@ namespace SimplifiedChessEngine
 
         public bool QueenThreatened(Cell currentCell)
         {
-            Cells.Where(cell => cell.Piece != null 
+            Cells.Where(cell => !cell.IsEmpty()
                 && cell.Piece.Color != currentCell.Piece.Color)
                 .ToList().ForEach(x => x.Piece.GetAvailableMoves(x, this, false));
 
-            return Cells.Where(cell => cell.Piece != null && cell.Piece.Color != currentCell.Piece.Color)
+            return Cells.Where(cell => !cell.IsEmpty() && cell.Piece.Color != currentCell.Piece.Color)
                 .Any(cell => cell.Piece.AvailableMoves != null && cell.Piece.AvailableMoves
                     .Any(move => move.Action == ChessAction.KILL && move.To.X == currentCell.X && move.To.Y == currentCell.Y));
         }

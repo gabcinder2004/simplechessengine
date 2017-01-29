@@ -32,16 +32,16 @@ namespace SimplifiedChessEngine
                 return new List<ChessMove>();
             }
 
-            var cells = board.Cells.Where(cell => cell.Piece != null && cell.Piece.Color == colorTurn).OrderBy(x => x.Piece.GetType() != typeof(Queen)).ToList();
+            var cells = board.Cells.Where(cell => !cell.IsEmpty() && cell.Piece.Color == colorTurn).OrderBy(x => x.Piece.GetType() != typeof(Queen)).ToList();
             foreach (var cell in cells)
             {
                 var availableMoves = cell.Piece.GetAvailableMoves(cell, board);
 
                 // if it is possible to kill the opposing queen, do it.
-                if (availableMoves.Any(move => move.To.Piece != null && move.To.Piece.GetType() == typeof(Queen) && move.Action == ChessAction.KILL))
+                if (availableMoves.Any(move => !move.To.IsEmpty() && move.To.Piece.GetType() == typeof(Queen) && move.Action == ChessAction.KILL))
                 {
-                    var move = availableMoves.First(m => m.To.Piece != null && m.To.Piece.GetType() == typeof(Queen) && m.Action == ChessAction.KILL);
-                    
+                    var move = availableMoves.First(m => !m.To.IsEmpty() && m.To.Piece.GetType() == typeof(Queen) && m.Action == ChessAction.KILL);
+
                     // If our queen is going to die, abandon this move path
                     if (colorTurn != ChessColor.White) return new List<ChessMove>();
 
