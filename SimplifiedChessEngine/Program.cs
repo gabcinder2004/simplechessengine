@@ -16,8 +16,8 @@ namespace SimplifiedChessEngine
                 var solver = new GameSolver(game);
                 solver.NextPlay(game.ChessBoard, ChessColor.White, new List<ChessMove>());
                 gameSolutions.Add(solver);
-                //var str = string.Format("{0} : {1}", solver.GameWon ? "YES" : "NO", solver.Stopwatch.Elapsed);
-                Console.WriteLine(solver.GameWon ? "YES" : "NO");
+                //var str = string.Format("{0} : {1}", solver.GameOver ? "YES" : "NO", solver.Stopwatch.Elapsed);
+                Console.WriteLine(solver.Winner == ChessColor.White ? "YES" : "NO");
             }
 
             Console.ReadLine();
@@ -395,7 +395,9 @@ namespace SimplifiedChessEngine
 
     public class GameSolver
     {
-        public bool GameWon;
+        public bool GameOver;
+
+        public ChessColor Winner = ChessColor.Black;
         public ChessGame Game { get; set; }
         public List<ChessMove> WinningMoves { get; set; }
         public Stopwatch Stopwatch { get; set; }
@@ -410,7 +412,7 @@ namespace SimplifiedChessEngine
         {
             var moves = new List<ChessMove>();
 
-            if (GameWon)
+            if (GameOver)
             {
                 return moves;
             }
@@ -435,7 +437,8 @@ namespace SimplifiedChessEngine
 
                     // If we can kill the black queen, do it and win.
                     allMoves.Add(move);
-                    GameWon = true;
+                    GameOver = true;
+                    Winner = ChessColor.White;
                     WinningMoves = allMoves;
                     return WinningMoves;
                 }
@@ -453,7 +456,7 @@ namespace SimplifiedChessEngine
                     var nextColor = colorTurn == ChessColor.White ? ChessColor.Black : ChessColor.White;
                     var m = NextPlay(newBoard, nextColor, currentMoves);
 
-                    if (GameWon)
+                    if (GameOver)
                     {
                         return m;
                     }
@@ -464,7 +467,8 @@ namespace SimplifiedChessEngine
             if (colorTurn == ChessColor.Black && !cells.Any(cell => cell.Piece.AvailableMoves.Count > 0))
             {
                 WinningMoves = allMoves;
-                GameWon = true;
+                GameOver = true;
+                Winner = ChessColor.White;
                 return WinningMoves;
             }
 
