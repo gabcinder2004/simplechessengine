@@ -52,6 +52,7 @@
     <Compile Include="ChessPiece.cs" />
     <Compile Include="ChessUtility.cs" />
     <Compile Include="GameFactory.cs" />
+    <Compile Include="GameResult.cs" />
     <Compile Include="GameSolver.cs" />
     <Compile Include="Knight.cs" />
     <Compile Include="Program.cs" />
